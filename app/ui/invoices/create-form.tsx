@@ -1,6 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useActionState, startTransition } from 'react';
 import { CustomerField } from '@/app/lib/definitions';
 import Link from 'next/link';
 import {
@@ -11,23 +13,50 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '@/app/ui/button';
 import { createInvoice, State } from '@/app/lib/actions';
+import { CreateInvoice, CreateInvoiceValues } from '@/app/lib/validations';
+import { FieldError } from '../field-error';
+
+const initialState: State = { message: null, errors: {} };
 
 export default function Form({ customers }: { customers: CustomerField[] }) {
-  const initialState: State = { message: null, errors: {} };
-  const [state, formAction] = useActionState(createInvoice, initialState);
+  const [serverState, formAction] = useActionState(createInvoice, initialState);
+
+    const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CreateInvoiceValues>({
+    resolver: zodResolver(CreateInvoice),
+    mode: 'onChange',
+    defaultValues: {
+      customerId: '',
+    },
+  });
+
+
+  const onValidSubmit = (data: CreateInvoiceValues) => {
+    const formData = new FormData();
+    formData.append('customerId', data.customerId);
+    formData.append('amount', data.amount.toString());
+    formData.append('status', data.status);
+
+    startTransition(() => {
+      formAction(formData);
+    });
+  };
 
   return (
-    <form action={formAction}>
+    <form onSubmit={handleSubmit(onValidSubmit)}>
       <div className="rounded-md bg-gray-50 p-4 md:p-6">
         {/* Customer Name */}
         <div className="mb-4">
-          <label htmlFor="customer" className="mb-2 block text-sm font-medium">
+          <label htmlFor="customer" className="mb-2 block text-sm font-light">
             Choose customer
           </label>
           <div className="relative">
             <select
               id="customer"
-              name="customerId"
+              {...register('customerId')}
               className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               defaultValue=""
               aria-describedby="customer-error"
@@ -43,26 +72,23 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
             </select>
             <UserCircleIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
           </div>
-          <div id="customer-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.customerId &&
-              state.errors.customerId.map((error: string) => (
-                <p className="mt-2 text-sm text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
+          <FieldError 
+            id="customer-error" 
+            clientError={errors.customerId?.message} 
+            serverErrors={serverState.errors?.customerId} 
+          />
         </div>
 
         {/* Invoice Amount */}
         <div className="mb-4">
-          <label htmlFor="amount" className="mb-2 block text-sm font-medium">
+          <label htmlFor="amount" className="mb-2 block text-sm font-light">
             Choose an amount
           </label>
           <div className="relative mt-2 rounded-md">
             <div className="relative">
               <input
                 id="amount"
-                name="amount"
+                {...register('amount')}
                 type="number"
                 step="0.01"
                 placeholder="Enter USD amount"
@@ -70,20 +96,17 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
               />
               <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
             </div>
-            <div id="amount-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.amount &&
-                state.errors.amount.map((error: string) => (
-                  <p className="mt-2 text-sm text-red-500" key={error}>
-                    {error}
-                  </p>
-                ))}
-            </div>
+            <FieldError 
+              id="amount-error" 
+              clientError={errors.amount?.message} 
+              serverErrors={serverState.errors?.amount} 
+            />
           </div>
         </div>
 
         {/* Invoice Status */}
         <fieldset>
-          <legend className="mb-2 block text-sm font-medium">
+          <legend className="mb-2 block text-sm font-light">
             Set the invoice status
           </legend>
           <div className="rounded-md border border-gray-200 bg-white px-[14px] py-3">
@@ -91,10 +114,10 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
               <div className="flex items-center">
                 <input
                   id="pending"
-                  name="status"
                   type="radio"
                   value="pending"
                   className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
+                  {...register('status')}
                 />
                 <label
                   htmlFor="pending"
@@ -106,10 +129,10 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
               <div className="flex items-center">
                 <input
                   id="paid"
-                  name="status"
                   type="radio"
                   value="paid"
                   className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
+                  {...register('status')}
                 />
                 <label
                   htmlFor="paid"
@@ -120,15 +143,13 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
               </div>
             </div>
           </div>
-          <div id="status-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.status &&
-              state.errors.status.map((error: string) => (
-                <p className="mt-2 text-sm text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
+          <FieldError 
+            id="status-error" 
+            clientError={errors.status?.message} 
+            serverErrors={serverState.errors?.status} 
+          />
         </fieldset>
+        {serverState.message ? <p className="mt-2 text-sm text-red-500">{serverState.message}</p> : null}
       </div>
       <div className="mt-6 flex justify-end gap-4">
         <Link
